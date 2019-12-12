@@ -10,6 +10,7 @@ class AdvancedBehavior(TaskSet):
         self.client.headers['User-Agent'] = USER_AGENT
 
         response = self.client.get('/')
+        # Parse URLs from response using regular expression
         result = re.findall('<li\s+class="[^"]*category-item[^"]*"><a href="([^"]+)"', response.text)
         for row in result:
             CATEGORIES.append(row)
@@ -17,6 +18,7 @@ class AdvancedBehavior(TaskSet):
     @task
     def load_category(self):
         global CATEGORIES
+        # Load random category using saved list of URLs
         self.client.get(random.choice(CATEGORIES), name="Loading category")
 
 

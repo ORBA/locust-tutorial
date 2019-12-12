@@ -13,4 +13,3 @@ class SimpleBehavior(TaskSet):
 class TestUser(HttpLocust):
     task_set = SimpleBehavior
     wait_time = between(3, 3)
-

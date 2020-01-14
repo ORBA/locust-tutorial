@@ -1,4 +1,4 @@
-from locust import HttpLocust, TaskSet, task, between
+from locust import HttpLocust, TaskSequence, task, between, seq_task
 import os, re, json, csv, random
 
 # List of URLs
@@ -8,7 +8,7 @@ CATEGORIES = []
 CUSTOMERS = []
 
 # Probability of using anonymous user instead of registered customer (0.0 - 1.0)
-ANONYMOUS_USERS = 0.8
+ANONYMOUS_USERS = 0.0
 
 # Probability of opening product view page for each product (0.0 - 1.0)
 PRODUCTS_OPEN_PAGE = 0.7
@@ -17,9 +17,11 @@ PRODUCTS_OPEN_PAGE = 0.7
 PRODUCTS_MIN = 2
 PRODUCTS_MAX = 7
 
+CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), 'credentials.csv')
+
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:69.0) Gecko/20100101 Firefox/69.0'
 
-class BusinessBehavior(TaskSet):
+class BusinessBehavior(TaskSequence):
     def setup(self):
         global CATEGORIES, CUSTOMERS
         self.client.headers['User-Agent'] = USER_AGENT
@@ -31,8 +33,9 @@ class BusinessBehavior(TaskSet):
             CATEGORIES.append(row)
 
         # Load credentials from 'credentials.csv' in script folder
-        with open(os.path.join(os.path.dirname(__file__), 'credentials.csv'), 'r') as file:
-            CUSTOMERS = list(csv.reader(file))
+        if (os.path.exists(CREDENTIALS_PATH)):
+            with open(CREDENTIALS_PATH, 'r') as file:
+                CUSTOMERS = list(csv.reader(file))
 
     def on_start(self):
         global CUSTOMERS
@@ -40,54 +43,57 @@ class BusinessBehavior(TaskSet):
         if random.random() >= ANONYMOUS_USERS and CUSTOMERS:
             self.loginCustomer(CUSTOMERS[random.randint(0, len(CUSTOMERS) - 1)])
 
-    @task(1)
-    def test(self):
+    @seq_task(1)
+    def taskClearCart(self):
+        response = self.client.get('/')
+        # Ensure that cart is empty
+        self.clearCart(self.form_key(response.text))
+
+    # Generate random number of products between PRODUCTS_MIN and PRODUCTS_MAX
+    @task(random.randint(PRODUCTS_MIN, PRODUCTS_MAX))
+    @seq_task(2)
+    def taskProduct(self):
         global CATEGORIES, CUSTOMERS
 
         products = []
-        # Generate random number of products between PRODUCTS_MIN and PRODUCTS_MAX
-        productsLeft = random.randint(PRODUCTS_MIN, PRODUCTS_MAX)
 
-        response = self.client.get('/')
-        # Ensure that cart is empty
-        form_key = self.clearCart(self.form_key(response.text))
+        # Running until some products will be found
+        while not products:
+            # Use random category URL
+            category = random.choice(CATEGORIES)
+            response = self.client.get(category, name="/catalog/category/view/id/%s")
+            # Save form_key for further usage
+            form_key = self.form_key(response.text)
+            # Try to parse products from response
+            products = self.parseProducts(response.text)
 
-        while productsLeft:
-            # Running until some products will be found
-            while not products:
-                # Use random category URL
-                category = random.choice(CATEGORIES)
-                response = self.client.get(category, name="/catalog/category/view/id/%s")
-                # Save form_key for further usage
-                form_key = self.form_key(response.text)
-                # Try to parse products from response
-                products = self.parseProducts(response.text)
+        # When there is only one products - random between 0 and 0 will fail
+        if len(products) == 1:
+            product = products.pop()
+        else:
+            product = products.pop(random.randint(0, len(products) - 1))
 
-            # When there is only one products - random between 0 and 0 will fail
-            if len(products) == 1:
-                product = products.pop()
-            else:
-                product = products.pop(random.randint(0, len(products) - 1))
+        # Load product view page with some randomness
+        if random.random() <= PRODUCTS_OPEN_PAGE:
+            form_key = self.viewProductPage(product)
 
-            # Load product view page with some randomness
-            if random.random() <= PRODUCTS_OPEN_PAGE:
-                form_key = self.viewProductPage(product)
+        self.addToCart(form_key, product)
 
-            self.addToCart(form_key, product)
-            products = []
-            productsLeft -= 1
-
+    @seq_task(3)
+    def taskCart(self):
         self.client.get('/checkout/cart')
 
     def loginCustomer(self, customer):
         # Load login page to get the form key
         response = self.client.get('/customer/account/login')
         # Send credentials to log into web-site
-        self.client.post('/customer/account/loginPost', {
+        with self.client.post('/customer/account/loginPost', {
             'form_key': self.form_key(response.text),
             'login[username]': customer[0],
             'login[password]': customer[1]
-        })
+        }, allow_redirects=False, catch_response=True) as response:
+            if ('customer/account/login' in response.headers['location']):
+                response.failure('Login failed')
 
     def viewProductPage(self, product):
         response = self.client.get('/catalog/product/view/id/%s' % product['product'], name="/catalog/product/view/id/%s")
@@ -148,7 +154,8 @@ class BusinessBehavior(TaskSet):
         return products
 
     def form_key(self, responseData):
-        return re.findall('form_key.* value="([a-zA-Z0-9]{16})"', responseData)[0]
+        form_keys = re.findall('form_key.* value="([a-zA-Z0-9]{16})"', responseData)
+        return form_keys[0] if len(form_keys) > 0 else ''
 
 class TestUser(HttpLocust):
     task_set = BusinessBehavior

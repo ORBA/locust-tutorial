@@ -17,6 +17,8 @@ PRODUCTS_OPEN_PAGE = 0.7
 PRODUCTS_MIN = 2
 PRODUCTS_MAX = 7
 
+CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), 'credentials.csv')
+
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:69.0) Gecko/20100101 Firefox/69.0'
 
 class BusinessBehavior(TaskSet):
@@ -31,8 +33,9 @@ class BusinessBehavior(TaskSet):
             CATEGORIES.append(row)
 
         # Load credentials from 'credentials.csv' in script folder
-        with open(os.path.join(os.path.dirname(__file__), 'credentials.csv'), 'r') as file:
-            CUSTOMERS = list(csv.reader(file))
+        if (os.path.exists(CREDENTIALS_PATH)):
+            with open(CREDENTIALS_PATH, 'r') as file:
+                CUSTOMERS = list(csv.reader(file))
 
     def on_start(self):
         global CUSTOMERS

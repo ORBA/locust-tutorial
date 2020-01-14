@@ -30,9 +30,9 @@ Use `products_left` as `weight` argument
 ![](images/e03-login.png)
 * For some reason, provided credentials may be wrong – please, check the response of `loginPost` request
 * *Hint:* use `allow_redirects=False` and response.headers attribute to check the redirection URL
+* *Hint:* use `catch_response=True` and `with` statement to fail the response.
 * *Hint:* you can use `print()` function to output variable value to console while running test.
-If there is no need to continue test after printing data – use `exit()` function to terminate the script
+If there is no need to continue test after printing data – use `exit()` function to terminate the script.
 Alternatively, you can debug code using PyCharm
-* *Hint:* complex data types (list, dictionary) can be converted to human-readable structured text for 
-printing using `json.dumps(var, indent=2)`
 
+##### Solutions for all exercises can be found in `/solution/` folder. Each solution also contains changes from previous exercises  

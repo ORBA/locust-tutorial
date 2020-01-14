@@ -8,7 +8,7 @@ CATEGORIES = []
 CUSTOMERS = []
 
 # Probability of using anonymous user instead of registered customer (0.0 - 1.0)
-ANONYMOUS_USERS = 0.0
+ANONYMOUS_USERS = 0.8
 
 # Probability of opening product view page for each product (0.0 - 1.0)
 PRODUCTS_OPEN_PAGE = 0.7
